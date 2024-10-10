@@ -1,0 +1,171 @@
+/**
+ * Utility Class for Calculating Business Days. This class will have logic for all the implementations.
+ * 
+ * Modification Log :
+ * ------------------------------------------------------------------------------
+ * Developer             User Story/Defect        Date        Description
+ * ------------------------------------------------------------------------------
+ * Shashank Agarwal      US81168                  06/25/2020  Original Version
+ * ------------------------------------------------------------------------------
+ */
+
+public class CalendarUtility {
+    public BusinessHours bhours;
+
+    /**
+     * Constructor to set calculation on the basis of given BusinessHours
+     * @param businessHoursName - Name of BusinessHour.
+     * UNCOMMENT THIS CONSTRUCTOR WHEN WE HAVE ADDITIONAL BUSINESS HOUR
+     */
+    /*public CalendarUtility(String businessHoursName){
+        //get business hours
+        bhours = [SELECT Id FROM BusinessHours WHERE Name = businessHoursName];
+    }*/
+
+    // Constructor to set calculation on the basis of default BusinessHours
+    public CalendarUtility(){
+        bhours = [SELECT Id,TimeZoneSidKey FROM BusinessHours WHERE IsDefault = true];
+    }
+
+    /**
+     * This method will add Business Days to the given date
+     * @param referenceDate - Date on which we need to add Days.
+     * @param days - Number of Days to be added.
+     * @return Datetime - returns new Date.
+     */
+    public Datetime addDays(Datetime referenceDate, Integer days){
+        Time startTime = Time.newInstance(0, 0, 0, 0);
+        Date dt = Date.valueOf(referenceDate);
+        Integer offsetSeconds = targetTimezone.getOffset(dt) / 1000;
+        referenceDate = Datetime.newInstanceGMT(dt, startTime).addSeconds(-offsetSeconds);
+
+        referenceDate = BusinessHours.nextStartDate(bHours.Id, referenceDate);
+        for (Integer elapsed = 0; elapsed < days; elapsed++) {
+            // Add 1 day
+            referenceDate = referenceDate.addDays(1);
+            // Check if new date is within working days
+            if (!BusinessHours.isWithin(bHours.Id, referenceDate)) {
+                // If new date is not within working days, get new working day
+                referenceDate = BusinessHours.nextStartDate(bHours.Id, referenceDate);
+            }
+        }
+
+        return referenceDate;
+    }
+
+    /**
+     * This method will subtract Business Days to the given date
+     * @param referenceDate - Date on which we need to subtract Days.
+     * @param days - Number of Days to be subtracted.
+     * @return Datetime - returns new Date.
+     */
+    public Datetime subtractDays(Datetime referenceDate, Integer days) {
+        // If startdate is not within working days, take previous working day
+        referenceDate = getPreviousWorkingDay(referenceDate);
+        for (Integer elapsed = 0; elapsed < days; elapsed++) {
+            // Subtract 1 day
+            referenceDate = referenceDate.addDays(-1);
+            // Check if new date is within working days
+            if (!BusinessHours.isWithin(bHours.Id, referenceDate)) {
+                // If new date is not within working days, get previous working day
+                referenceDate = getPreviousWorkingDay(referenceDate);
+            }
+        }
+
+        return referenceDate;
+    }
+
+    /**
+     * This method will get the previous working day from the given date
+     * @param startDate - Date on which we need to add Days.
+     * @return Datetime - returns new Date.
+     */
+    public Datetime getPreviousWorkingDay(Datetime dtDate) {
+        // Check if new date is within working days
+        if (!BusinessHours.isWithin(bHours.Id, dtDate)) {
+            // New date is not within working days, recursively call same function to get previous date by subtracting 1 day
+            dtDate = dtDate.addDays(-1);
+            return getPreviousWorkingDay(dtDate);
+        }
+        while (true) {
+            if (BusinessHours.isWithin(bHours.Id, dtDate)) {
+                break;
+            }
+            dtDate = dtDate.addDays(-1);
+        }
+        return dtDate;
+    }
+
+    /**
+     * This method will return the next working day from the given date
+     * @param startDate - Date on which we need to add Days.
+     * @return Datetime - returns new Date.
+     */
+    public Datetime getNextWorkingDay(Datetime dtDate) {
+        return BusinessHours.nextStartDate(bHours.Id, dtDate);
+    }
+
+    /**
+     * This method will check if the given date is working day or not
+     * @param startDate - Date on which we need to add Days.
+     * @return boolean - returns boolean.
+     */
+    public Boolean isWorkingDay(Datetime dtDate) {
+        return BusinessHours.isWithin(bHours.Id, dtDate);
+    }
+
+    /**
+     * This method will calculate the no. of working days between two dates
+     * @param startDate - Date from which count starts.
+     * @param endDate - Date where count ends.
+     * @return Integer - returns no. of working Days.
+     */
+    public Integer getNoOfBusinessDaysBetweenDates(Datetime startDate, Datetime endDate) {
+        Integer count = 0;
+        while (startDate <= endDate) {
+            if (BusinessHours.isWithin(bHours.Id, startDate)) {
+                count++;
+            }
+            startDate = startDate.addDays(1);
+        }
+        return count;
+    }
+
+    /**
+     * This method will calculate the last working day of the given month
+     * @param referenceDate - Date of the month for which last date is calculated.
+     * @return Datetime - returns last Working date of the month.
+     */
+    public Datetime getLastWorkingDateOfTheMonth(Datetime referenceDate) {
+        Integer month = referenceDate.month();
+        Integer year = referenceDate.year();
+
+        TimeZone targetTimezone = TimeZone.getTimeZone(bHours.TimeZoneSidKey);
+        Time startTime = Time.newInstance(0, 0, 0, 0);
+        Date dt = Date.newInstance(year, month, 1);
+        Integer offsetSeconds = targetTimezone.getOffset(dt) / 1000;
+        Datetime targetDatetime = Datetime.newInstanceGMT(dt, startTime).addSeconds(-offsetSeconds);
+        Datetime lastDate = targetDatetime.addMonths(1);
+        lastDate = lastDate.addDays(-1);
+        lastDate = getPreviousWorkingDay(lastDate);
+
+        return lastDate;
+    }
+
+    /**
+     * This method will calculate the first working day of the given month
+     * @param referenceDate - Date of the month for which first date is calculated.
+     * @return Datetime - returns First Working date of the month.
+     */
+    public Datetime getFirstWorkingDateOfTheMonth(Datetime referenceDate) {
+        Integer month = referenceDate.month();
+        Integer year = referenceDate.year();
+
+        Datetime targetTime = Datetime.newInstance(year, month, 1, 0, 0, 0, 1);
+        Datetime lastDate = targetTime.addMonths(1).date().toStartOfMonth().addDays(-1);
+
+        Datetime nextStart = BusinessHours.nextStartDate(bHours.id, targetTime);
+
+        return nextStart;
+    }
+}
